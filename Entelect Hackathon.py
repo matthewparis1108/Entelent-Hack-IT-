@@ -1,8 +1,9 @@
 import json
+import os
 
-max_plants_per_tick = 20
+MAX_PLANTS_PER_TICK = 20
 
-plant_index = {
+PLANT_INDEX = {
     "Grass": 1,
     "Rose Bush": 2,
     "Dwarf Sunflower": 5,
@@ -10,7 +11,7 @@ plant_index = {
     "Oak Tree": 12,
 }
 
-plant_preferred_soil = {
+PLANT_PREFERRED_SOIL = {
     "Grass": [0, 1],
     "Rose Bush": [0, 1],
     "Lavender": [0, 1],
@@ -19,8 +20,13 @@ plant_preferred_soil = {
 }
 
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+INPUT_FILE = os.path.join(SCRIPT_DIR, "1.json")
+OUTPUT_FILE = os.path.join(SCRIPT_DIR, "level1_submission.json")
+
+
 def load_json_file(file_path):
-    with open(file_path, "r") as file:
+    with open(file_path, "r", encoding="utf-8") as file:
         return json.load(file)
 
 
@@ -61,12 +67,14 @@ def make_zones(level):
         mud_col_max = max(col for col, row in mud_cells)
 
         oak_cells = [
-            cell for cell in mud_cells
+            cell
+            for cell in mud_cells
             if cell[0] >= mud_col_max - 2
         ]
 
         remaining_mud = [
-            cell for cell in mud_cells
+            cell
+            for cell in mud_cells
             if cell[0] < mud_col_max - 2
         ]
     else:
@@ -93,14 +101,11 @@ def build_actions(zones, level):
     actions = {}
 
     for plant_name, cells in zones.items():
+        current_plant_index = PLANT_INDEX[plant_name]
 
-        # Get the actual numeric plant index
-        current_plant_index = plant_index[plant_name]
-
-        for i in range(0, len(cells), max_plants_per_tick):
-
-            batch = cells[i:i + max_plants_per_tick]
-            tick = i // max_plants_per_tick
+        for i in range(0, len(cells), MAX_PLANTS_PER_TICK):
+            batch = cells[i:i + MAX_PLANTS_PER_TICK]
+            tick = i // MAX_PLANTS_PER_TICK
 
             if tick >= total_ticks:
                 break
@@ -112,11 +117,9 @@ def build_actions(zones, level):
     tick_entries = []
 
     for tick in sorted(actions.keys()):
-
         plants_list = []
 
         for current_plant_index, batch in actions[tick]:
-
             for x, y in batch:
                 plants_list.append({
                     "plant_index": current_plant_index,
@@ -124,7 +127,7 @@ def build_actions(zones, level):
                     "col": x
                 })
 
-        plants_list = plants_list[:max_plants_per_tick]
+        plants_list = plants_list[:MAX_PLANTS_PER_TICK]
 
         tick_entries.append({
             "tick": tick,
@@ -136,19 +139,13 @@ def build_actions(zones, level):
     }
 
 
-def print_zones(zones):
-    print("\nPlant zones:")
-
-    for plant_name, cells in zones.items():
-        print(
-            f"{plant_name}: "
-            f"index={plant_index[plant_name]}, "
-            f"cells={len(cells)}"
-        )
-
-
 def main():
-    level = load_json_file("1.json")
+    if not os.path.exists(INPUT_FILE):
+        print("ERROR: 1.json not found.")
+        print("Expected:", INPUT_FILE)
+        return
+
+    level = load_json_file(INPUT_FILE)
 
     print(
         f"Grid: {level['cols']}x{level['rows']}, "
@@ -165,20 +162,31 @@ def main():
 
     zones = make_zones(level)
 
-    print_zones(zones)
+    print("\nPlant zones:")
+
+    for plant_name, cells in zones.items():
+        print(
+            f"  {plant_name}: "
+            f"index={PLANT_INDEX[plant_name]}, "
+            f"cells={len(cells)}"
+        )
 
     submission = build_actions(zones, level)
 
-    with open("level1_submission.json", "w") as file:
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as file:
         json.dump(submission, file, indent=2)
 
-    print("\nSaved: level1_submission.json")
+    print("\nSUCCESS!")
+    print("Updated:")
+    print(OUTPUT_FILE)
 
-    for action in submission["actions"]:
-        print(
-            f"Tick {action['tick']}: "
-            f"{len(action['plants'])} plants"
-        )
+    total_plants = sum(
+        len(action["plants"])
+        for action in submission["actions"]
+    )
+
+    print(f"Total plants scheduled: {total_plants}")
+    print(f"Total ticks used: {len(submission['actions'])}")
 
 
 if __name__ == "__main__":
