@@ -1,16 +1,21 @@
 """
-Level 4 – Crystal Cactus (Drought@280) + Mire Bloom (Rain@50)
+Level 4 – Best iteration
+All events, no CV domination, density-first finale
 """
 
 import json
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 INPUT_FILE = "4.json"
 OUTPUT_FILE = "level4_submission.json"
 
+GRASS, ROSE_BUSH, BLUE_MOSS = 1, 2, 3
+DWARF_SUNFLOWER, LAVENDER = 5, 6
+ORANGE_BLOSSOM, CRYSTAL_CACTUS, MIRE_BLOOM = 7, 17, 18
 
-def load_level():
-    with open(INPUT_FILE, "r", encoding="utf-8") as f:
+
+def load_level(path):
+    with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -18,205 +23,85 @@ def find_valid_locations(level):
     preferred, secondary = [], []
     for cell in level.get("cells", []):
         t, s = cell.get("terrain"), cell.get("soil")
+        entry = {"row": cell["row"], "col": cell["col"]}
         if t == 0 and s in (0, 1):
-            preferred.append({"row": cell["row"], "col": cell["col"]})
+            preferred.append(entry)
         elif t == 1 and s in (0, 1):
-            secondary.append({"row": cell["row"], "col": cell["col"]})
+            secondary.append(entry)
         elif t == 0 and s == 2:
-            secondary.append({"row": cell["row"], "col": cell["col"]})
+            secondary.append(entry)
     return preferred + secondary
 
 
 def create_submission(level):
     locations = find_valid_locations(level)
-    print(f"Found {len(locations)} locations")
+    n = len(locations)
+    print(f"[INFO] Locations: {n}")
 
     ticks = level.get("ticks", 800)
     max_per = 20
-    n = len(locations)
-
-    G, R, S, L = 1, 2, 5, 6
-    BM, OB, MB, CC = 3, 7, 18, 17
-
     by_tick = defaultdict(list)
 
-    def plant(tick, idx, row, col):
+    def add(tick, idx, row, col):
         if 0 <= tick < ticks - 1:
             by_tick[tick].append({
                 "plant_index": idx, "row": row, "col": col
             })
 
-    # PHASE 1 (0-45): starters before Rain
-    for i in range(min(900, n * 2)):
-        t = i // max_per
-        if t > 45:
-            break
-        loc = locations[i % n]
-        choice = i % 20
-        if choice < 10:
-            p = G
-        elif choice < 14:
-            p = R
-        elif choice < 17:
-            p = L
-        else:
-            p = S
-        plant(t, p, loc["row"], loc["col"])
+    def spread(start, end, mix, stride=1, max_actions=None):
+        if n == 0:
+            return
+        total = (end - start + 1) * max_per
+        if max_actions:
+            total = min(total, max_actions)
+        for i in range(total):
+            t = start + (i // max_per)
+            if t > end or t >= ticks - 1:
+                break
+            loc = locations[(i * stride) % n]
+            add(t, mix[i % len(mix)], loc["row"], loc["col"])
 
-    # PHASE 2 (50-100): Rain → Blue Moss + Mire Bloom
-    for i in range(min(800, n * 2)):
-        t = 50 + (i // max_per)
-        if t > 100:
-            break
-        loc = locations[(i * 7) % n]
-        choice = i % 20
-        if t < 60:
-            if choice < 6:
-                p = G
-            elif choice < 10:
-                p = L
-            elif choice < 13:
-                p = R
-            elif choice < 15:
-                p = S
-            else:
-                p = BM
-        else:
-            if choice < 5:
-                p = G
-            elif choice < 8:
-                p = L
-            elif choice < 11:
-                p = R
-            elif choice < 13:
-                p = S
-            elif choice < 16:
-                p = BM
-            elif choice < 19:
-                p = MB
-            else:
-                p = OB
-        plant(t, p, loc["row"], loc["col"])
+    # P1 (0-45): starters before Rain
+    mix1 = [GRASS]*10 + [ROSE_BUSH]*5 + [LAVENDER]*3 + [DWARF_SUNFLOWER]*2
+    spread(0, 45, mix1, stride=1, max_actions=1000)
 
-    # PHASE 3 (120-200): HEAVY Grass for Crystal Cactus at Drought@280
-    for i in range(min(1000, n * 2)):
-        t = 120 + (i // max_per)
-        if t > 200:
-            break
-        loc = locations[(i * 11) % n]
-        choice = i % 20
-        if choice < 10:
-            p = G
-        elif choice < 13:
-            p = L
-        elif choice < 15:
-            p = R
-        elif choice < 17:
-            p = S
-        elif choice < 19:
-            p = BM
-        else:
-            p = MB
-        plant(t, p, loc["row"], loc["col"])
+    # P2a (50-65): Rain – Blue Moss
+    mix2a = [GRASS]*4 + [LAVENDER]*3 + [ROSE_BUSH]*3 + [DWARF_SUNFLOWER]*2 + [BLUE_MOSS]*6 + [ORANGE_BLOSSOM]*2
+    spread(50, 65, mix2a, stride=7, max_actions=400)
 
-    # PHASE 4 (230-270): keep Grass high through Ash Eclipse
-    for i in range(min(600, n)):
-        t = 230 + (i // max_per)
-        if t > 270:
-            break
-        loc = locations[(i * 13) % n]
-        choice = i % 20
-        if choice < 8:
-            p = G
-        elif choice < 11:
-            p = L
-        elif choice < 13:
-            p = R
-        elif choice < 15:
-            p = S
-        elif choice < 17:
-            p = BM
-        else:
-            p = MB
-        plant(t, p, loc["row"], loc["col"])
+    # P2b (66-120): Mire Bloom
+    mix2b = [GRASS]*4 + [LAVENDER]*3 + [ROSE_BUSH]*3 + [DWARF_SUNFLOWER]*2 + [BLUE_MOSS]*3 + [MIRE_BLOOM]*4 + [ORANGE_BLOSSOM]*1
+    spread(66, 120, mix2b, stride=11, max_actions=900)
 
-    # PHASE 5 (280-320): AFTER Drought – Crystal Cactus heavy
-    for i in range(min(600, n)):
-        t = 280 + (i // max_per)
-        if t > 320:
-            break
-        loc = locations[(i * 17) % n]
-        choice = i % 20
-        if choice < 5:
-            p = G
-        elif choice < 8:
-            p = L
-        elif choice < 10:
-            p = R
-        elif choice < 12:
-            p = S
-        elif choice < 16:
-            p = CC
-        elif choice < 18:
-            p = BM
-        else:
-            p = MB
-        plant(t, p, loc["row"], loc["col"])
+    # P3 (130-220): Heavy Grass for Crystal Cactus
+    mix3 = [GRASS]*12 + [LAVENDER]*3 + [ROSE_BUSH]*3 + [DWARF_SUNFLOWER]*1 + [BLUE_MOSS]*1
+    spread(130, 220, mix3, stride=13, max_actions=1400)
 
-    # PHASE 6 (400-500): re-establish
-    for i in range(min(700, n)):
-        t = 400 + (i // max_per)
-        if t > 500:
-            break
-        loc = locations[(i * 19) % n]
-        choice = i % 20
-        if choice < 6:
-            p = G
-        elif choice < 10:
-            p = L
-        elif choice < 13:
-            p = R
-        elif choice < 15:
-            p = S
-        elif choice < 17:
-            p = CC
-        elif choice < 19:
-            p = BM
-        else:
-            p = MB
-        plant(t, p, loc["row"], loc["col"])
+    # P4 (230-275): Ash Eclipse + pre-Drought Grass
+    mix4 = [GRASS]*10 + [LAVENDER]*3 + [ROSE_BUSH]*3 + [DWARF_SUNFLOWER]*2 + [BLUE_MOSS]*1 + [MIRE_BLOOM]*1
+    spread(230, 275, mix4, stride=17, max_actions=700)
 
-    # PHASE 7 (600-680)
-    for i in range(min(500, n)):
-        t = 600 + (i // max_per)
-        if t > 680:
-            break
-        loc = locations[(i * 23) % n]
-        choice = i % 20
-        if choice < 5:
-            p = G
-        elif choice < 9:
-            p = L
-        elif choice < 12:
-            p = R
-        elif choice < 14:
-            p = S
-        elif choice < 16:
-            p = CC
-        elif choice < 18:
-            p = BM
-        else:
-            p = MB
-        plant(t, p, loc["row"], loc["col"])
+    # P5 (280-350): Crystal Cactus after Drought
+    mix5 = [GRASS]*4 + [LAVENDER]*3 + [ROSE_BUSH]*2 + [DWARF_SUNFLOWER]*2 + [CRYSTAL_CACTUS]*6 + [BLUE_MOSS]*2 + [MIRE_BLOOM]*1
+    spread(280, 350, mix5, stride=19, max_actions=1000)
 
-    # PHASE 8 (720-790): AFTER Earthquake – final diversity
-    final_mix = [G, L, R, S, BM, MB, CC, OB, G, L, R, S, BM, MB, CC, L]
-    for i in range(min(1000, n * 2)):
-        t = 720 + (i // max_per)
-        if t >= ticks - 1:
-            break
-        loc = locations[i % n]
-        plant(t, final_mix[i % len(final_mix)], loc["row"], loc["col"])
+    # P6 (400-520): Re-establish
+    mix6 = [GRASS]*6 + [LAVENDER]*4 + [ROSE_BUSH]*3 + [DWARF_SUNFLOWER]*2 + [CRYSTAL_CACTUS]*2 + [BLUE_MOSS]*2 + [MIRE_BLOOM]*1
+    spread(400, 520, mix6, stride=23, max_actions=1200)
+
+    # P7 (580-680): Mid-late
+    mix7 = [GRASS]*5 + [LAVENDER]*4 + [ROSE_BUSH]*3 + [DWARF_SUNFLOWER]*3 + [CRYSTAL_CACTUS]*2 + [BLUE_MOSS]*2 + [MIRE_BLOOM]*1
+    spread(580, 680, mix7, stride=29, max_actions=800)
+
+    # P8 (720-790): Final density after Earthquake
+    final = [
+        GRASS, LAVENDER, ROSE_BUSH, DWARF_SUNFLOWER,
+        BLUE_MOSS, MIRE_BLOOM, CRYSTAL_CACTUS, ORANGE_BLOSSOM,
+        GRASS, LAVENDER, ROSE_BUSH, DWARF_SUNFLOWER,
+        BLUE_MOSS, MIRE_BLOOM, CRYSTAL_CACTUS, LAVENDER,
+        GRASS, LAVENDER, ROSE_BUSH, DWARF_SUNFLOWER
+    ]
+    spread(720, 790, final, stride=3, max_actions=1400)
 
     actions = []
     for tick in sorted(by_tick.keys()):
@@ -227,11 +112,10 @@ def create_submission(level):
 
 
 if __name__ == "__main__":
-    level = load_level()
+    level = load_level(INPUT_FILE)
     submission = create_submission(level)
     total = sum(len(a["plants"]) for a in submission["actions"])
     print(f"Total: {total}")
-    from collections import Counter
     cnt = Counter()
     for a in submission["actions"]:
         for p in a["plants"]:
