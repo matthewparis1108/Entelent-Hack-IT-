@@ -1,18 +1,21 @@
 """
-Level 2 solution
+Level 2 – Comprehensive solution
+Grid: 70x100, 500 ticks, animals ON, Rain @ 250
 """
 
 import json
-from collections import defaultdict
+from collections import defaultdict, Counter
 
-# ========== CHANGE THESE ==========
-INPUT_FILE = "2.json"                 # or "2(1).json"
+INPUT_FILE = "2.json"                  # or "2(1).json"
 OUTPUT_FILE = "level2_submission.json"
-# ==================================
+
+GRASS, ROSE_BUSH, BLUE_MOSS, CRIMSON_VINE = 1, 2, 3, 4
+DWARF_SUNFLOWER, LAVENDER, ORANGE_BLOSSOM = 5, 6, 7
+GLOWCAP, MIRE_BLOOM = 9, 18
 
 
-def load_level():
-    with open(INPUT_FILE, "r", encoding="utf-8") as f:
+def load_level(path):
+    with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -20,161 +23,90 @@ def find_valid_locations(level):
     preferred, secondary = [], []
     for cell in level.get("cells", []):
         t, s = cell.get("terrain"), cell.get("soil")
+        entry = {"row": cell["row"], "col": cell["col"]}
         if t == 0 and s in (0, 1):
-            preferred.append({"row": cell["row"], "col": cell["col"]})
-        elif t in (0, 1) and s in (0, 1, 2):
-            secondary.append({"row": cell["row"], "col": cell["col"]})
+            preferred.append(entry)
+        elif t == 1 and s in (0, 1):
+            secondary.append(entry)
+        elif t == 0 and s == 2:
+            secondary.append(entry)
     return preferred + secondary
 
 
 def create_submission(level):
     locations = find_valid_locations(level)
-    print(f"Found {len(locations)} usable locations")
+    n = len(locations)
+    print(f"[INFO] Usable locations: {n}")
 
     ticks = level.get("ticks", 500)
-    max_per = 20
-    n = len(locations)
-
-    G, R, S, L, O = 1, 2, 5, 6, 12
-    BM, CV, OB, MB = 3, 4, 7, 18
-
+    max_per_tick = 20
     by_tick = defaultdict(list)
 
-    def plant(tick, idx, row, col):
+    def add(tick, plant_index, row, col):
         if 0 <= tick < ticks - 1:
             by_tick[tick].append({
-                "plant_index": idx,
-                "row": row,
-                "col": col
+                "plant_index": plant_index, "row": row, "col": col
             })
 
-    # PHASE 1 (0-50): MAX Grass + Rose → Loamcrawlers / Verdelopes
-    for i in range(min(600, n * 2)):
-        t = i // max_per
-        if t > 50:
-            break
-        loc = locations[i % n]
-        choice = i % 20
-        if choice < 13:
-            p = G
-        elif choice < 17:
-            p = R
-        elif choice < 19:
-            p = L
-        else:
-            p = S
-        plant(t, p, loc["row"], loc["col"])
+    def spread_plant(start_tick, end_tick, mix, stride=1, max_actions=None):
+        if n == 0:
+            return
+        total_slots = (end_tick - start_tick + 1) * max_per_tick
+        if max_actions is not None:
+            total_slots = min(total_slots, max_actions)
+        for i in range(total_slots):
+            tick = start_tick + (i // max_per_tick)
+            if tick > end_tick or tick >= ticks - 1:
+                break
+            loc = locations[(i * stride) % n]
+            add(tick, mix[i % len(mix)], loc["row"], loc["col"])
 
-    # PHASE 2 (60-150): diversity + try Blue Moss
-    for i in range(min(500, n)):
-        t = 60 + (i // max_per)
-        if t > 150:
-            break
-        loc = locations[(i * 7) % n]
-        choice = i % 20
-        if choice < 8:
-            p = G
-        elif choice < 12:
-            p = L
-        elif choice < 15:
-            p = R
-        elif choice < 17:
-            p = S
-        else:
-            p = BM
-        plant(t, p, loc["row"], loc["col"])
+    # PHASE 1 (0-40): Grass+Rose → Verdelopes + Loamcrawlers
+    phase1 = [GRASS]*12 + [ROSE_BUSH]*5 + [LAVENDER]*2 + [DWARF_SUNFLOWER]*1
+    spread_plant(0, 40, phase1, stride=1, max_actions=800)
 
-    # PHASE 3 (200-280): Rain window – Blue Moss then Mire Bloom
-    for i in range(min(500, n)):
-        t = 200 + (i // max_per)
-        if t > 280:
-            break
-        loc = locations[(i * 11) % n]
-        choice = i % 20
-        if t < 250:
-            if choice < 6:
-                p = G
-            elif choice < 10:
-                p = L
-            elif choice < 13:
-                p = R
-            elif choice < 15:
-                p = S
-            else:
-                p = BM
-        else:
-            if choice < 5:
-                p = G
-            elif choice < 8:
-                p = L
-            elif choice < 11:
-                p = R
-            elif choice < 13:
-                p = S
-            elif choice < 16:
-                p = BM
-            elif choice < 19:
-                p = MB
-            else:
-                p = OB
-        plant(t, p, loc["row"], loc["col"])
+    # PHASE 2 (50-120): Lavender+Sunflower → Nectaris + Solwings
+    phase2 = [GRASS]*6 + [LAVENDER]*5 + [ROSE_BUSH]*4 + [DWARF_SUNFLOWER]*4 + [BLUE_MOSS]*1
+    spread_plant(50, 120, phase2, stride=7, max_actions=800)
 
-    # PHASE 4 (300-380): second unlock wave
-    for i in range(min(400, n)):
-        t = 300 + (i // max_per)
-        if t > 380:
-            break
-        loc = locations[(i * 13) % n]
-        choice = i % 20
-        if choice < 5:
-            p = G
-        elif choice < 9:
-            p = L
-        elif choice < 12:
-            p = R
-        elif choice < 14:
-            p = S
-        elif choice < 16:
-            p = BM
-        elif choice < 18:
-            p = MB
-        else:
-            p = OB
-        plant(t, p, loc["row"], loc["col"])
+    # PHASE 3 (130-200): Blue Moss + Orange Blossom
+    phase3 = [GRASS]*5 + [LAVENDER]*4 + [ROSE_BUSH]*3 + [DWARF_SUNFLOWER]*3 + [BLUE_MOSS]*3 + [ORANGE_BLOSSOM]*2
+    spread_plant(130, 200, phase3, stride=11, max_actions=700)
 
-    # PHASE 5 (420-490): final diversity – minimal Oak
-    final_mix = [G, L, R, S, BM, MB, OB, CV, L, G, R, S, BM, MB]
-    for i in range(min(700, n * 2)):
-        t = 420 + (i // max_per)
-        if t >= ticks - 1:
-            break
-        loc = locations[i % n]
-        plant(t, final_mix[i % len(final_mix)], loc["row"], loc["col"])
+    # PHASE 4a (230-249): Pre-Rain Blue Moss push
+    phase4a = [GRASS]*4 + [LAVENDER]*3 + [ROSE_BUSH]*3 + [DWARF_SUNFLOWER]*2 + [BLUE_MOSS]*6 + [ORANGE_BLOSSOM]*2
+    spread_plant(230, 249, phase4a, stride=13, max_actions=400)
+
+    # PHASE 4b (250-310): Post-Rain Mire Bloom
+    phase4b = [GRASS]*3 + [LAVENDER]*3 + [ROSE_BUSH]*2 + [DWARF_SUNFLOWER]*2 + [BLUE_MOSS]*4 + [MIRE_BLOOM]*4 + [ORANGE_BLOSSOM]*1 + [CRIMSON_VINE]*1
+    spread_plant(250, 310, phase4b, stride=17, max_actions=600)
+
+    # PHASE 5 (320-380): second-wave tries
+    phase5 = [GRASS]*5 + [LAVENDER]*4 + [ROSE_BUSH]*3 + [DWARF_SUNFLOWER]*3 + [BLUE_MOSS]*2 + [MIRE_BLOOM]*1 + [ORANGE_BLOSSOM]*1 + [GLOWCAP]*1
+    spread_plant(320, 380, phase5, stride=19, max_actions=500)
+
+    # PHASE 6 (400-490): FINAL density (Level 1 style, no Oak)
+    final = [GRASS]*4 + [LAVENDER]*4 + [ROSE_BUSH]*3 + [DWARF_SUNFLOWER]*3 + [BLUE_MOSS]*2 + [MIRE_BLOOM]*2 + [ORANGE_BLOSSOM]*1 + [CRIMSON_VINE]*1
+    spread_plant(400, 490, final, stride=3, max_actions=1000)
 
     actions = []
     for tick in sorted(by_tick.keys()):
-        plants = by_tick[tick][:max_per]
+        plants = by_tick[tick][:max_per_tick]
         if plants:
             actions.append({"tick": tick, "plants": plants})
-
     return {"actions": actions}
 
 
 if __name__ == "__main__":
-    level = load_level()
+    level = load_level(INPUT_FILE)
     submission = create_submission(level)
-
     total = sum(len(a["plants"]) for a in submission["actions"])
-    print(f"Total plant actions: {total}")
-    print(f"Tick groups: {len(submission['actions'])}")
-
-    from collections import Counter
+    print(f"Total: {total}")
     cnt = Counter()
     for a in submission["actions"]:
         for p in a["plants"]:
             cnt[p["plant_index"]] += 1
-    print("Plant counts:", dict(sorted(cnt.items())))
-
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    print("Counts:", dict(sorted(cnt.items())))
+    with open(OUTPUT_FILE, "w") as f:
         json.dump(submission, f, indent=2)
     print(f"Wrote {OUTPUT_FILE}")
