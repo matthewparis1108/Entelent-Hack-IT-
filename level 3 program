@@ -1,16 +1,39 @@
 """
-Level 3 – focus on Crystal Cactus (Drought) + Mire Bloom (Rain)
+Level 3 – Comprehensive solution
+================================
+Grid: 150x150 (22500 cells), 800 ticks
+animals_enabled: true
+
+Events:
+  - Drought      @ tick  10   → Crystal Cactus (Grass cov > 0.04)
+  - Rain         @ tick 150   → Mire Bloom (Blue Moss cov > 0.05)
+  - Ash Eclipse  @ tick 300   → Emberroot / Ashroot / Phoenix path
+  - Seasons      every 100 ticks
 """
 
 import json
-from collections import defaultdict
+from collections import defaultdict, Counter
 
+# =============================================================================
 INPUT_FILE = "3.json"
 OUTPUT_FILE = "level3_submission.json"
+# =============================================================================
+
+GRASS = 1
+ROSE_BUSH = 2
+BLUE_MOSS = 3
+CRIMSON_VINE = 4
+DWARF_SUNFLOWER = 5
+LAVENDER = 6
+ORANGE_BLOSSOM = 7
+GLOWCAP = 9
+OAK_TREE = 12
+CRYSTAL_CACTUS = 17
+MIRE_BLOOM = 18
 
 
-def load_level():
-    with open(INPUT_FILE, "r", encoding="utf-8") as f:
+def load_level(path):
+    with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -18,175 +41,136 @@ def find_valid_locations(level):
     preferred, secondary = [], []
     for cell in level.get("cells", []):
         t, s = cell.get("terrain"), cell.get("soil")
+        entry = {"row": cell["row"], "col": cell["col"]}
         if t == 0 and s in (0, 1):
-            preferred.append({"row": cell["row"], "col": cell["col"]})
+            preferred.append(entry)
         elif t == 1 and s in (0, 1):
-            secondary.append({"row": cell["row"], "col": cell["col"]})
+            secondary.append(entry)
         elif t == 0 and s == 2:
-            secondary.append({"row": cell["row"], "col": cell["col"]})
+            secondary.append(entry)
     return preferred + secondary
 
 
 def create_submission(level):
     locations = find_valid_locations(level)
-    print(f"Found {len(locations)} locations")
+    n = len(locations)
+    print(f"[INFO] Usable locations: {n}")
 
     ticks = level.get("ticks", 800)
     max_per = 20
-    n = len(locations)
-
-    G, R, S, L = 1, 2, 5, 6
-    BM, OB, MB, CC = 3, 7, 18, 17
-
     by_tick = defaultdict(list)
 
-    def plant(tick, idx, row, col):
+    def add(tick, idx, row, col):
         if 0 <= tick < ticks - 1:
             by_tick[tick].append({
                 "plant_index": idx, "row": row, "col": col
             })
 
+    def spread(start, end, mix, stride=1, max_actions=None):
+        if n == 0:
+            return
+        total = (end - start + 1) * max_per
+        if max_actions is not None:
+            total = min(total, max_actions)
+        for i in range(total):
+            t = start + (i // max_per)
+            if t > end or t >= ticks - 1:
+                break
+            loc = locations[(i * stride) % n]
+            add(t, mix[i % len(mix)], loc["row"], loc["col"])
+
     # PHASE 1 (0-9): ONLY Grass for Crystal Cactus at Drought@10
-    for i in range(min(200, n)):
-        t = i // max_per
-        if t > 9:
-            break
-        loc = locations[i % n]
-        plant(t, G, loc["row"], loc["col"])
+    spread(0, 9, [GRASS], stride=1, max_actions=200)
+    print("[PHASE 1] Grass only for Crystal Cactus @ Drought")
 
-    # PHASE 2 (12-80): starters + Crystal Cactus
-    for i in range(min(1000, n * 2)):
-        t = 12 + (i // max_per)
-        if t > 80:
-            break
-        loc = locations[(i * 3) % n]
-        choice = i % 20
-        if choice < 8:
-            p = G
-        elif choice < 12:
-            p = R
-        elif choice < 15:
-            p = L
-        elif choice < 17:
-            p = S
-        elif choice < 19:
-            p = CC
-        else:
-            p = BM
-        plant(t, p, loc["row"], loc["col"])
+    # PHASE 2 (12-80): After Drought – starters + Crystal Cactus
+    mix2 = (
+        [GRASS] * 10 +
+        [ROSE_BUSH] * 5 +
+        [LAVENDER] * 3 +
+        [DWARF_SUNFLOWER] * 1 +
+        [CRYSTAL_CACTUS] * 1
+    )
+    spread(12, 80, mix2, stride=1, max_actions=1200)
+    print("[PHASE 2] Starters + Crystal Cactus")
 
-    # PHASE 3 (100-140): pre-Rain Blue Moss path
-    for i in range(min(600, n)):
-        t = 100 + (i // max_per)
-        if t > 140:
-            break
-        loc = locations[(i * 7) % n]
-        choice = i % 20
-        if choice < 6:
-            p = G
-        elif choice < 10:
-            p = L
-        elif choice < 13:
-            p = R
-        elif choice < 15:
-            p = S
-        elif choice < 17:
-            p = BM
-        elif choice < 19:
-            p = CC
-        else:
-            p = OB
-        plant(t, p, loc["row"], loc["col"])
+    # PHASE 3 (90-140): Pre-Rain – Blue Moss path
+    mix3 = (
+        [GRASS] * 6 +
+        [LAVENDER] * 4 +
+        [ROSE_BUSH] * 3 +
+        [DWARF_SUNFLOWER] * 2 +
+        [BLUE_MOSS] * 3 +
+        [CRYSTAL_CACTUS] * 1 +
+        [ORANGE_BLOSSOM] * 1
+    )
+    spread(90, 140, mix3, stride=7, max_actions=800)
+    print("[PHASE 3] Blue Moss path before Rain")
 
-    # PHASE 4 (150-220): Rain → Blue Moss then Mire Bloom
-    for i in range(min(800, n * 2)):
-        t = 150 + (i // max_per)
-        if t > 220:
-            break
-        loc = locations[(i * 11) % n]
-        choice = i % 20
-        if t < 160:
-            if choice < 5:
-                p = G
-            elif choice < 8:
-                p = L
-            elif choice < 11:
-                p = R
-            elif choice < 13:
-                p = S
-            else:
-                p = BM
-        else:
-            if choice < 4:
-                p = G
-            elif choice < 7:
-                p = L
-            elif choice < 10:
-                p = R
-            elif choice < 12:
-                p = S
-            elif choice < 15:
-                p = BM
-            elif choice < 18:
-                p = MB
-            else:
-                p = CC
-        plant(t, p, loc["row"], loc["col"])
+    # PHASE 4a (150-165): Rain window – Blue Moss heavy
+    mix4a = (
+        [GRASS] * 4 +
+        [LAVENDER] * 3 +
+        [ROSE_BUSH] * 2 +
+        [DWARF_SUNFLOWER] * 2 +
+        [BLUE_MOSS] * 7 +
+        [CRYSTAL_CACTUS] * 1 +
+        [ORANGE_BLOSSOM] * 1
+    )
+    spread(150, 165, mix4a, stride=11, max_actions=400)
+    print("[PHASE 4a] Rain – Blue Moss push")
 
-    # PHASE 5 (300-380): post Ash Eclipse
-    for i in range(min(600, n)):
-        t = 300 + (i // max_per)
-        if t > 380:
-            break
-        loc = locations[(i * 13) % n]
-        choice = i % 20
-        if choice < 5:
-            p = G
-        elif choice < 9:
-            p = L
-        elif choice < 12:
-            p = R
-        elif choice < 14:
-            p = S
-        elif choice < 16:
-            p = BM
-        elif choice < 18:
-            p = MB
-        else:
-            p = CC
-        plant(t, p, loc["row"], loc["col"])
+    # PHASE 4b (166-230): Post-Rain – Mire Bloom
+    mix4b = (
+        [GRASS] * 4 +
+        [LAVENDER] * 3 +
+        [ROSE_BUSH] * 2 +
+        [DWARF_SUNFLOWER] * 2 +
+        [BLUE_MOSS] * 3 +
+        [MIRE_BLOOM] * 4 +
+        [CRYSTAL_CACTUS] * 1 +
+        [ORANGE_BLOSSOM] * 1
+    )
+    spread(166, 230, mix4b, stride=13, max_actions=800)
+    print("[PHASE 4b] Mire Bloom after Rain")
 
-    # PHASE 6 (500-580)
-    for i in range(min(500, n)):
-        t = 500 + (i // max_per)
-        if t > 580:
-            break
-        loc = locations[(i * 17) % n]
-        choice = i % 20
-        if choice < 5:
-            p = G
-        elif choice < 9:
-            p = L
-        elif choice < 12:
-            p = R
-        elif choice < 14:
-            p = S
-        elif choice < 16:
-            p = BM
-        elif choice < 18:
-            p = MB
-        else:
-            p = CC
-        plant(t, p, loc["row"], loc["col"])
+    # PHASE 5 (280-360): Ash Eclipse window
+    mix5 = (
+        [GRASS] * 5 +
+        [LAVENDER] * 4 +
+        [ROSE_BUSH] * 3 +
+        [DWARF_SUNFLOWER] * 2 +
+        [BLUE_MOSS] * 2 +
+        [MIRE_BLOOM] * 2 +
+        [CRYSTAL_CACTUS] * 1 +
+        [ORANGE_BLOSSOM] * 1
+    )
+    spread(280, 360, mix5, stride=17, max_actions=800)
+    print("[PHASE 5] Ash Eclipse window")
 
-    # PHASE 7 (700-790): final diversity
-    final_mix = [G, L, R, S, BM, MB, CC, OB, G, L, R, S, BM, MB, CC, L]
-    for i in range(min(1000, n * 2)):
-        t = 700 + (i // max_per)
-        if t >= ticks - 1:
-            break
-        loc = locations[i % n]
-        plant(t, final_mix[i % len(final_mix)], loc["row"], loc["col"])
+    # PHASE 6 (450-550): Mid-game reinforce
+    mix6 = (
+        [GRASS] * 5 +
+        [LAVENDER] * 4 +
+        [ROSE_BUSH] * 3 +
+        [DWARF_SUNFLOWER] * 2 +
+        [BLUE_MOSS] * 2 +
+        [MIRE_BLOOM] * 2 +
+        [CRYSTAL_CACTUS] * 1 +
+        [ORANGE_BLOSSOM] * 1
+    )
+    spread(450, 550, mix6, stride=19, max_actions=700)
+    print("[PHASE 6] Mid reinforce")
+
+    # PHASE 7 (700-790): FINAL diversity
+    final = [
+        GRASS, LAVENDER, ROSE_BUSH, DWARF_SUNFLOWER,
+        BLUE_MOSS, MIRE_BLOOM, CRYSTAL_CACTUS, ORANGE_BLOSSOM,
+        GRASS, LAVENDER, ROSE_BUSH, DWARF_SUNFLOWER,
+        BLUE_MOSS, MIRE_BLOOM, CRYSTAL_CACTUS, LAVENDER
+    ]
+    spread(700, 790, final, stride=3, max_actions=1200)
+    print("[PHASE 7] Final diversity push")
 
     actions = []
     for tick in sorted(by_tick.keys()):
@@ -196,17 +180,37 @@ def create_submission(level):
     return {"actions": actions}
 
 
-if __name__ == "__main__":
-    level = load_level()
+def main():
+    level = load_level(INPUT_FILE)
     submission = create_submission(level)
+
     total = sum(len(a["plants"]) for a in submission["actions"])
-    print(f"Total: {total}")
-    from collections import Counter
+    print(f"\n[SUMMARY] Total plant actions: {total}")
+    print(f"[SUMMARY] Tick groups: {len(submission['actions'])}")
+    if submission["actions"]:
+        print(f"[SUMMARY] Tick range: "
+              f"{submission['actions'][0]['tick']} … "
+              f"{submission['actions'][-1]['tick']}")
+
     cnt = Counter()
     for a in submission["actions"]:
         for p in a["plants"]:
             cnt[p["plant_index"]] += 1
-    print("Counts:", dict(sorted(cnt.items())))
-    with open(OUTPUT_FILE, "w") as f:
+
+    names = {
+        1: "Grass", 2: "Rose Bush", 3: "Blue Moss", 4: "Crimson Vine",
+        5: "Dwarf Sunflower", 6: "Lavender", 7: "Orange Blossom",
+        9: "Glowcap", 12: "Oak Tree", 17: "Crystal Cactus", 18: "Mire Bloom"
+    }
+    print("[SUMMARY] Plant type counts:")
+    for idx, count in sorted(cnt.items()):
+        label = names.get(idx, f"plant_{idx}")
+        print(f"           {label:20s} ({idx:2d}): {count}")
+
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(submission, f, indent=2)
-    print(f"Wrote {OUTPUT_FILE}")
+    print(f"\n[DONE] Wrote {OUTPUT_FILE}")
+
+
+if __name__ == "__main__":
+    main()
