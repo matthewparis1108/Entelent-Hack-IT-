@@ -22,9 +22,7 @@ def find_valid_locations(level):
         t, s = cell.get("terrain"), cell.get("soil")
         if t == 0 and s in (0, 1):
             preferred.append({"row": cell["row"], "col": cell["col"]})
-        elif t == 1 and s in (0, 1):
-            secondary.append({"row": cell["row"], "col": cell["col"]})
-        elif t == 0 and s == 2:
+        elif t in (0, 1) and s in (0, 1, 2):
             secondary.append({"row": cell["row"], "col": cell["col"]})
     return preferred + secondary
 
@@ -50,50 +48,83 @@ def create_submission(level):
                 "col": col
             })
 
-    # PHASE 1 (0-40): Grass + Rose heavy → animals
-    for i in range(min(400, n)):
+    # PHASE 1 (0-50): MAX Grass + Rose → Loamcrawlers / Verdelopes
+    for i in range(min(600, n * 2)):
         t = i // max_per
-        if t > 40:
+        if t > 50:
             break
         loc = locations[i % n]
         choice = i % 20
-        if choice < 12:
+        if choice < 13:
             p = G
-        elif choice < 16:
+        elif choice < 17:
             p = R
-        elif choice < 18:
+        elif choice < 19:
             p = L
         else:
             p = S
         plant(t, p, loc["row"], loc["col"])
 
-    # PHASE 2 (50-150): diversity + try Blue Moss / Orange Blossom
-    for i in range(min(400, n)):
-        t = 50 + (i // max_per)
+    # PHASE 2 (60-150): diversity + try Blue Moss
+    for i in range(min(500, n)):
+        t = 60 + (i // max_per)
         if t > 150:
             break
         loc = locations[(i * 7) % n]
         choice = i % 20
-        if choice < 7:
+        if choice < 8:
             p = G
-        elif choice < 11:
+        elif choice < 12:
             p = L
-        elif choice < 14:
+        elif choice < 15:
             p = R
-        elif choice < 16:
+        elif choice < 17:
             p = S
-        elif choice < 18:
-            p = BM
         else:
-            p = OB
+            p = BM
         plant(t, p, loc["row"], loc["col"])
 
-    # PHASE 3 (230-300): Rain window – Blue Moss + Mire Bloom
-    for i in range(min(400, n)):
-        t = 230 + (i // max_per)
-        if t > 300:
+    # PHASE 3 (200-280): Rain window – Blue Moss then Mire Bloom
+    for i in range(min(500, n)):
+        t = 200 + (i // max_per)
+        if t > 280:
             break
         loc = locations[(i * 11) % n]
+        choice = i % 20
+        if t < 250:
+            if choice < 6:
+                p = G
+            elif choice < 10:
+                p = L
+            elif choice < 13:
+                p = R
+            elif choice < 15:
+                p = S
+            else:
+                p = BM
+        else:
+            if choice < 5:
+                p = G
+            elif choice < 8:
+                p = L
+            elif choice < 11:
+                p = R
+            elif choice < 13:
+                p = S
+            elif choice < 16:
+                p = BM
+            elif choice < 19:
+                p = MB
+            else:
+                p = OB
+        plant(t, p, loc["row"], loc["col"])
+
+    # PHASE 4 (300-380): second unlock wave
+    for i in range(min(400, n)):
+        t = 300 + (i // max_per)
+        if t > 380:
+            break
+        loc = locations[(i * 13) % n]
         choice = i % 20
         if choice < 5:
             p = G
@@ -103,18 +134,18 @@ def create_submission(level):
             p = R
         elif choice < 14:
             p = S
-        elif choice < 17:
+        elif choice < 16:
             p = BM
-        elif choice < 19:
+        elif choice < 18:
             p = MB
         else:
-            p = CV
+            p = OB
         plant(t, p, loc["row"], loc["col"])
 
-    # PHASE 4 (400-490): final diversity – minimal Oak
-    final_mix = [G, L, R, S, BM, BM, L, R, OB, MB, CV, G, L, S]
-    for i in range(min(600, n * 2)):
-        t = 400 + (i // max_per)
+    # PHASE 5 (420-490): final diversity – minimal Oak
+    final_mix = [G, L, R, S, BM, MB, OB, CV, L, G, R, S, BM, MB]
+    for i in range(min(700, n * 2)):
+        t = 420 + (i // max_per)
         if t >= ticks - 1:
             break
         loc = locations[i % n]
