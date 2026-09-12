@@ -125,7 +125,7 @@ if __name__ == "__main__":
     for a in submission["actions"]:
         for p in a["plants"]:
             cnt[p["plant_index"]] += 1
-    print("Plant type counts in submission:", dict(sorted(cnt.items())))
+    print("Plant counts:", dict(sorted(cnt.items())))
 
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(submission, f, indent=2)
