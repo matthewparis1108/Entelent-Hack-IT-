@@ -1,10 +1,11 @@
 import json
 from collections import defaultdict
 
-# --- change these two lines to match your actual file names ---
-INPUT_FILE = "1.json"                    # or "level1.json", whatever the input is called
-OUTPUT_FILE = "level1_submission.json"   # the file you will submit
-# --------------------------------------------------------------
+# ========== CHANGE THESE TO MATCH YOUR LOCAL FILES ==========
+INPUT_FILE = "1.json"                       # your level file
+OUTPUT_FILE = "level1_submission.json"      # file you will submit
+# ============================================================
+
 
 def load_level():
     with open(INPUT_FILE, "r", encoding="utf-8") as file:
@@ -12,14 +13,16 @@ def load_level():
 
 
 def find_valid_locations(level):
-    """Find cells that are plantable: terrain != 2 and soil in (0, 1)."""
+    """
+    Plantable cells:
+    - terrain == 0  (ground)
+    - soil in (0, 1)  (Dirt or Mud – preferred by starting plants)
+    """
     locations = []
     for cell in level.get("cells", []):
-        terrain = cell.get("terrain")
-        soil = cell.get("soil")
-        if terrain == 2:          # uninhabitable
+        if cell.get("terrain") != 0:
             continue
-        if soil not in (0, 1):    # preferred soil for starting plants
+        if cell.get("soil") not in (0, 1):
             continue
         locations.append({
             "row": cell["row"],
@@ -32,47 +35,20 @@ def create_submission(level):
     locations = find_valid_locations(level)
     print(f"Found {len(locations)} valid locations")
 
-    # Only these plants are unlocked at the start
-    plant_indexes = [1, 2, 5, 6, 12]   # Grass, Rose Bush, Dwarf Sunflower, Lavender, Oak Tree
+    # Only these 5 plants are unlocked at the start
+    plant_indexes = [1, 2, 5, 6, 12]
+    # 1 = Grass
+    # 2 = Rose Bush
+    # 5 = Dwarf Sunflower
+    # 6 = Lavender
+    # 12 = Oak Tree
 
     ticks = level.get("ticks", 500)
     max_plants_per_tick = 20
 
     actions_by_tick = defaultdict(list)
 
-    # Plant up to 200 plants early so they have time to grow/spread
-    num_to_plant = min(len(locations), 200)
-    for i, location in enumerate(locations[:num_to_plant]):
-        tick = i // max_plants_per_tick
-        if tick >= ticks - 1:
-            break
-        plant_index = plant_indexes[i % len(plant_indexes)]
-        actions_by_tick[tick].append({
-            "plant_index": plant_index,
-            "row": location["row"],
-            "col": location["col"]
-        })
-
-    # Build the required format
-    actions = []
-    for tick in sorted(actions_by_tick.keys()):
-        plants = actions_by_tick[tick][:max_plants_per_tick]
-        actions.append({
-            "tick": tick,
-            "plants": plants
-        })
-
-    return {"actions": actions}
-
-
-if __name__ == "__main__":
-    level = load_level()
-    submission = create_submission(level)
-
-    total_plants = sum(len(a["plants"]) for a in submission["actions"])
-    print(f"Created submission with {len(submission['actions'])} tick entries, "
-          f"{total_plants} total plant actions")
-
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as file:
-        json.dump(submission, file, indent=2)
-    print(f"Wrote {OUTPUT_FILE}")
+    # CRITICAL: nutrients start at 100 and drop 1 per tick.
+    # After ~100 ticks the plant dies.
+    # Score is calculated only on the FINAL tick.
+    # So we plant late so the plants are still alive at the end.
