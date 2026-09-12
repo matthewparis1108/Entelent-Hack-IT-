@@ -1,14 +1,14 @@
 """
-Level 2 solution – Garden Growth Study
+Level 2 solution
 """
 
 import json
 from collections import defaultdict
 
-# ========== CHANGE THESE TO MATCH YOUR LOCAL FILES ==========
+# ========== CHANGE THESE ==========
 INPUT_FILE = "2.json"                 # or "2(1).json"
 OUTPUT_FILE = "level2_submission.json"
-# ============================================================
+# ==================================
 
 
 def load_level():
@@ -17,11 +17,9 @@ def load_level():
 
 
 def find_valid_locations(level):
-    preferred = []
-    secondary = []
+    preferred, secondary = [], []
     for cell in level.get("cells", []):
-        t = cell.get("terrain")
-        s = cell.get("soil")
+        t, s = cell.get("terrain"), cell.get("soil")
         if t == 0 and s in (0, 1):
             preferred.append({"row": cell["row"], "col": cell["col"]})
         elif t == 1 and s in (0, 1):
@@ -33,79 +31,98 @@ def find_valid_locations(level):
 
 def create_submission(level):
     locations = find_valid_locations(level)
-    print(f"Valid / usable locations: {len(locations)}")
+    print(f"Found {len(locations)} usable locations")
 
     ticks = level.get("ticks", 500)
-    max_per_tick = 20
+    max_per = 20
+    n = len(locations)
 
-    GRASS, ROSE, SUNFLOWER, LAVENDER, OAK = 1, 2, 5, 6, 12
-    BLUE_MOSS, CRIMSON_VINE, ORANGE_BLOSSOM, MIRE_BLOOM = 3, 4, 7, 18
+    G, R, S, L, O = 1, 2, 5, 6, 12
+    BM, CV, OB, MB = 3, 4, 7, 18
 
-    actions_by_tick = defaultdict(list)
+    by_tick = defaultdict(list)
 
-    def add(tick, plant, row, col):
+    def plant(tick, idx, row, col):
         if 0 <= tick < ticks - 1:
-            actions_by_tick[tick].append({
-                "plant_index": plant,
+            by_tick[tick].append({
+                "plant_index": idx,
                 "row": row,
                 "col": col
             })
 
-    n = len(locations)
-    if n == 0:
-        return {"actions": []}
-
-    # PHASE 1 – Early flood of starters (ticks 0-60)
-    early_mix = [GRASS]*10 + [LAVENDER]*4 + [ROSE]*3 + [SUNFLOWER]*2 + [OAK]*1
-    for i in range(min(n, 400)):
-        tick = i // max_per_tick
-        if tick > 60:
+    # PHASE 1 (0-40): Grass + Rose heavy → animals
+    for i in range(min(400, n)):
+        t = i // max_per
+        if t > 40:
             break
         loc = locations[i % n]
-        add(tick, early_mix[i % len(early_mix)], loc["row"], loc["col"])
+        choice = i % 20
+        if choice < 12:
+            p = G
+        elif choice < 16:
+            p = R
+        elif choice < 18:
+            p = L
+        else:
+            p = S
+        plant(t, p, loc["row"], loc["col"])
 
-    # PHASE 2 – Reinforce + try early unlocks (ticks 70-200)
-    mid_mix = (
-        [GRASS]*6 + [LAVENDER]*4 + [ROSE]*3 + [SUNFLOWER]*3 +
-        [BLUE_MOSS]*2 + [ORANGE_BLOSSOM]*1 + [OAK]*1
-    )
-    for i in range(min(n, 300)):
-        tick = 70 + (i // max_per_tick)
-        if tick > 200:
+    # PHASE 2 (50-150): diversity + try Blue Moss / Orange Blossom
+    for i in range(min(400, n)):
+        t = 50 + (i // max_per)
+        if t > 150:
+            break
+        loc = locations[(i * 7) % n]
+        choice = i % 20
+        if choice < 7:
+            p = G
+        elif choice < 11:
+            p = L
+        elif choice < 14:
+            p = R
+        elif choice < 16:
+            p = S
+        elif choice < 18:
+            p = BM
+        else:
+            p = OB
+        plant(t, p, loc["row"], loc["col"])
+
+    # PHASE 3 (230-300): Rain window – Blue Moss + Mire Bloom
+    for i in range(min(400, n)):
+        t = 230 + (i // max_per)
+        if t > 300:
             break
         loc = locations[(i * 11) % n]
-        add(tick, mid_mix[i % len(mid_mix)], loc["row"], loc["col"])
+        choice = i % 20
+        if choice < 5:
+            p = G
+        elif choice < 9:
+            p = L
+        elif choice < 12:
+            p = R
+        elif choice < 14:
+            p = S
+        elif choice < 17:
+            p = BM
+        elif choice < 19:
+            p = MB
+        else:
+            p = CV
+        plant(t, p, loc["row"], loc["col"])
 
-    # PHASE 3 – Around Rain event (ticks 230-320)
-    rain_mix = (
-        [GRASS]*4 + [LAVENDER]*3 + [ROSE]*2 + [SUNFLOWER]*2 +
-        [BLUE_MOSS]*4 + [MIRE_BLOOM]*2 + [CRIMSON_VINE]*1 +
-        [ORANGE_BLOSSOM]*1 + [OAK]*1
-    )
-    for i in range(min(n, 300)):
-        tick = 230 + (i // max_per_tick)
-        if tick > 320:
+    # PHASE 4 (400-490): final diversity – minimal Oak
+    final_mix = [G, L, R, S, BM, BM, L, R, OB, MB, CV, G, L, S]
+    for i in range(min(600, n * 2)):
+        t = 400 + (i // max_per)
+        if t >= ticks - 1:
             break
-        loc = locations[(i * 17) % n]
-        add(tick, rain_mix[i % len(rain_mix)], loc["row"], loc["col"])
-
-    # PHASE 4 – Late balanced reinforcement (last ~100 ticks)
-    late_mix = (
-        [GRASS]*5 + [LAVENDER]*4 + [ROSE]*3 + [SUNFLOWER]*3 +
-        [BLUE_MOSS]*2 + [ORANGE_BLOSSOM]*1 + [MIRE_BLOOM]*1 +
-        [CRIMSON_VINE]*1 + [OAK]*1
-    )
-    start_late = max(0, ticks - 100)
-    for i in range(min(n, 500)):
-        tick = start_late + (i // max_per_tick)
-        if tick >= ticks - 1:
-            break
-        loc = locations[(i * 13) % n]
-        add(tick, late_mix[i % len(late_mix)], loc["row"], loc["col"])
+        loc = locations[i % n]
+        plant(t, final_mix[i % len(final_mix)], loc["row"], loc["col"])
 
     actions = []
-    for tick in sorted(actions_by_tick.keys()):
-        plants = actions_by_tick[tick][:max_per_tick]
+    for tick in sorted(by_tick.keys()):
+        plants = by_tick[tick][:max_per]
         if plants:
             actions.append({"tick": tick, "plants": plants})
 
@@ -118,7 +135,7 @@ if __name__ == "__main__":
 
     total = sum(len(a["plants"]) for a in submission["actions"])
     print(f"Total plant actions: {total}")
-    print(f"Number of tick groups: {len(submission['actions'])}")
+    print(f"Tick groups: {len(submission['actions'])}")
 
     from collections import Counter
     cnt = Counter()
