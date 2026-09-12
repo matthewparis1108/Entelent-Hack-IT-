@@ -1,1 +1,132 @@
+"""
+Level 2 solution – Garden Growth Study
+"""
 
+import json
+from collections import defaultdict
+
+# ========== CHANGE THESE TO MATCH YOUR LOCAL FILES ==========
+INPUT_FILE = "2.json"                 # or "2(1).json"
+OUTPUT_FILE = "level2_submission.json"
+# ============================================================
+
+
+def load_level():
+    with open(INPUT_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def find_valid_locations(level):
+    preferred = []
+    secondary = []
+    for cell in level.get("cells", []):
+        t = cell.get("terrain")
+        s = cell.get("soil")
+        if t == 0 and s in (0, 1):
+            preferred.append({"row": cell["row"], "col": cell["col"]})
+        elif t == 1 and s in (0, 1):
+            secondary.append({"row": cell["row"], "col": cell["col"]})
+        elif t == 0 and s == 2:
+            secondary.append({"row": cell["row"], "col": cell["col"]})
+    return preferred + secondary
+
+
+def create_submission(level):
+    locations = find_valid_locations(level)
+    print(f"Valid / usable locations: {len(locations)}")
+
+    ticks = level.get("ticks", 500)
+    max_per_tick = 20
+
+    GRASS, ROSE, SUNFLOWER, LAVENDER, OAK = 1, 2, 5, 6, 12
+    BLUE_MOSS, CRIMSON_VINE, ORANGE_BLOSSOM, MIRE_BLOOM = 3, 4, 7, 18
+
+    actions_by_tick = defaultdict(list)
+
+    def add(tick, plant, row, col):
+        if 0 <= tick < ticks - 1:
+            actions_by_tick[tick].append({
+                "plant_index": plant,
+                "row": row,
+                "col": col
+            })
+
+    n = len(locations)
+    if n == 0:
+        return {"actions": []}
+
+    # PHASE 1 – Early flood of starters (ticks 0-60)
+    early_mix = [GRASS]*10 + [LAVENDER]*4 + [ROSE]*3 + [SUNFLOWER]*2 + [OAK]*1
+    for i in range(min(n, 400)):
+        tick = i // max_per_tick
+        if tick > 60:
+            break
+        loc = locations[i % n]
+        add(tick, early_mix[i % len(early_mix)], loc["row"], loc["col"])
+
+    # PHASE 2 – Reinforce + try early unlocks (ticks 70-200)
+    mid_mix = (
+        [GRASS]*6 + [LAVENDER]*4 + [ROSE]*3 + [SUNFLOWER]*3 +
+        [BLUE_MOSS]*2 + [ORANGE_BLOSSOM]*1 + [OAK]*1
+    )
+    for i in range(min(n, 300)):
+        tick = 70 + (i // max_per_tick)
+        if tick > 200:
+            break
+        loc = locations[(i * 11) % n]
+        add(tick, mid_mix[i % len(mid_mix)], loc["row"], loc["col"])
+
+    # PHASE 3 – Around Rain event (ticks 230-320)
+    rain_mix = (
+        [GRASS]*4 + [LAVENDER]*3 + [ROSE]*2 + [SUNFLOWER]*2 +
+        [BLUE_MOSS]*4 + [MIRE_BLOOM]*2 + [CRIMSON_VINE]*1 +
+        [ORANGE_BLOSSOM]*1 + [OAK]*1
+    )
+    for i in range(min(n, 300)):
+        tick = 230 + (i // max_per_tick)
+        if tick > 320:
+            break
+        loc = locations[(i * 17) % n]
+        add(tick, rain_mix[i % len(rain_mix)], loc["row"], loc["col"])
+
+    # PHASE 4 – Late balanced reinforcement (last ~100 ticks)
+    late_mix = (
+        [GRASS]*5 + [LAVENDER]*4 + [ROSE]*3 + [SUNFLOWER]*3 +
+        [BLUE_MOSS]*2 + [ORANGE_BLOSSOM]*1 + [MIRE_BLOOM]*1 +
+        [CRIMSON_VINE]*1 + [OAK]*1
+    )
+    start_late = max(0, ticks - 100)
+    for i in range(min(n, 500)):
+        tick = start_late + (i // max_per_tick)
+        if tick >= ticks - 1:
+            break
+        loc = locations[(i * 13) % n]
+        add(tick, late_mix[i % len(late_mix)], loc["row"], loc["col"])
+
+    actions = []
+    for tick in sorted(actions_by_tick.keys()):
+        plants = actions_by_tick[tick][:max_per_tick]
+        if plants:
+            actions.append({"tick": tick, "plants": plants})
+
+    return {"actions": actions}
+
+
+if __name__ == "__main__":
+    level = load_level()
+    submission = create_submission(level)
+
+    total = sum(len(a["plants"]) for a in submission["actions"])
+    print(f"Total plant actions: {total}")
+    print(f"Number of tick groups: {len(submission['actions'])}")
+
+    from collections import Counter
+    cnt = Counter()
+    for a in submission["actions"]:
+        for p in a["plants"]:
+            cnt[p["plant_index"]] += 1
+    print("Plant type counts in submission:", dict(sorted(cnt.items())))
+
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(submission, f, indent=2)
+    print(f"Wrote {OUTPUT_FILE}")
