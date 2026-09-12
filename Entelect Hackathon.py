@@ -1,8 +1,10 @@
 import json
+from collections import defaultdict
 
-INPUT_FILE = "1.json"
-OUTPUT_FILE = "level1_submission 3.json"
-
+# --- change these two lines to match your actual file names ---
+INPUT_FILE = "1.json"                    # or "level1.json", whatever the input is called
+OUTPUT_FILE = "level1_submission.json"   # the file you will submit
+# --------------------------------------------------------------
 
 def load_level():
     with open(INPUT_FILE, "r", encoding="utf-8") as file:
@@ -10,52 +12,67 @@ def load_level():
 
 
 def find_valid_locations(level):
+    """Find cells that are plantable: terrain != 2 and soil in (0, 1)."""
     locations = []
-
-    grid = level.get("grid", level.get("map", []))
-
-    for row_index, row in enumerate(grid):
-        for col_index, cell in enumerate(row):
-            if not isinstance(cell, dict):
-                continue
-
-            if cell.get("terrain") == 2:
-                continue
-
-            if cell.get("soil") not in (0, 1):
-                continue
-
-            locations.append({
-                "row": row_index,
-                "col": col_index
-            })
-
+    for cell in level.get("cells", []):
+        terrain = cell.get("terrain")
+        soil = cell.get("soil")
+        if terrain == 2:          # uninhabitable
+            continue
+        if soil not in (0, 1):    # preferred soil for starting plants
+            continue
+        locations.append({
+            "row": cell["row"],
+            "col": cell["col"]
+        })
     return locations
 
 
 def create_submission(level):
     locations = find_valid_locations(level)
+    print(f"Found {len(locations)} valid locations")
 
-    actions = []
-    plant_indexes = [0, 1, 2, 3, 4]
+    # Only these plants are unlocked at the start
+    plant_indexes = [1, 2, 5, 6, 12]   # Grass, Rose Bush, Dwarf Sunflower, Lavender, Oak Tree
 
-    for tick, location in enumerate(locations):
-        actions.append({
-            "tick": tick,
-            "plant_index": plant_indexes[tick % len(plant_indexes)],
+    ticks = level.get("ticks", 500)
+    max_plants_per_tick = 20
+
+    actions_by_tick = defaultdict(list)
+
+    # Plant up to 200 plants early so they have time to grow/spread
+    num_to_plant = min(len(locations), 200)
+    for i, location in enumerate(locations[:num_to_plant]):
+        tick = i // max_plants_per_tick
+        if tick >= ticks - 1:
+            break
+        plant_index = plant_indexes[i % len(plant_indexes)]
+        actions_by_tick[tick].append({
+            "plant_index": plant_index,
             "row": location["row"],
             "col": location["col"]
         })
 
-    return {
-        "actions": actions
-    }
+    # Build the required format
+    actions = []
+    for tick in sorted(actions_by_tick.keys()):
+        plants = actions_by_tick[tick][:max_plants_per_tick]
+        actions.append({
+            "tick": tick,
+            "plants": plants
+        })
+
+    return {"actions": actions}
 
 
-with open(INPUT_FILE, "r", encoding="utf-8") as file:
-    level = json.load(file)
+if __name__ == "__main__":
+    level = load_level()
+    submission = create_submission(level)
 
-submission = create_submission(level)
+    total_plants = sum(len(a["plants"]) for a in submission["actions"])
+    print(f"Created submission with {len(submission['actions'])} tick entries, "
+          f"{total_plants} total plant actions")
 
-with open(OUTPUT_FILE, "w", encoding="utf-8") as file:
-    json.dump(submission, file, indent=2)
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as file:
+        json.dump(submission, file, indent=2)
+    print(f"Wrote {OUTPUT_FILE}")
