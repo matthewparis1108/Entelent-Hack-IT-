@@ -1,17 +1,12 @@
-
 """
-Level 4 solution
-200x300, 800 ticks, animals ON
-Events: Rain@50, Ash Eclipse@250, Drought@280, Earthquake@700
+Level 4 – Crystal Cactus (Drought@280) + Mire Bloom (Rain@50)
 """
 
 import json
 from collections import defaultdict
 
-# ========== CHANGE THESE ==========
 INPUT_FILE = "4.json"
 OUTPUT_FILE = "level4_submission.json"
-# ==================================
 
 
 def load_level():
@@ -34,138 +29,169 @@ def find_valid_locations(level):
 
 def create_submission(level):
     locations = find_valid_locations(level)
-    print(f"Found {len(locations)} usable locations")
+    print(f"Found {len(locations)} locations")
 
     ticks = level.get("ticks", 800)
     max_per = 20
     n = len(locations)
 
-    G, R, S, L, O = 1, 2, 5, 6, 12
-    BM, CV, OB, MB = 3, 4, 7, 18
+    G, R, S, L = 1, 2, 5, 6
+    BM, OB, MB, CC = 3, 7, 18, 17
 
     by_tick = defaultdict(list)
 
     def plant(tick, idx, row, col):
         if 0 <= tick < ticks - 1:
             by_tick[tick].append({
-                "plant_index": idx,
-                "row": row,
-                "col": col
+                "plant_index": idx, "row": row, "col": col
             })
 
-    # PHASE 1 (0-40): Early starters before Rain
-    for i in range(min(800, n * 2)):
+    # PHASE 1 (0-45): starters before Rain
+    for i in range(min(900, n * 2)):
         t = i // max_per
-        if t > 40:
+        if t > 45:
             break
         loc = locations[i % n]
         choice = i % 20
-        if choice < 11:
+        if choice < 10:
             p = G
-        elif choice < 15:
+        elif choice < 14:
             p = R
-        elif choice < 18:
+        elif choice < 17:
             p = L
         else:
             p = S
         plant(t, p, loc["row"], loc["col"])
 
-    # PHASE 2 (50-120): Rain window – Blue Moss + Mire Bloom
-    for i in range(min(700, n)):
+    # PHASE 2 (50-100): Rain → Blue Moss + Mire Bloom
+    for i in range(min(800, n * 2)):
         t = 50 + (i // max_per)
-        if t > 120:
+        if t > 100:
             break
         loc = locations[(i * 7) % n]
         choice = i % 20
-        if choice < 6:
-            p = G
-        elif choice < 10:
-            p = L
-        elif choice < 13:
-            p = R
-        elif choice < 15:
-            p = S
-        elif choice < 17:
-            p = BM
-        elif choice < 19:
-            p = MB
+        if t < 60:
+            if choice < 6:
+                p = G
+            elif choice < 10:
+                p = L
+            elif choice < 13:
+                p = R
+            elif choice < 15:
+                p = S
+            else:
+                p = BM
         else:
-            p = OB
+            if choice < 5:
+                p = G
+            elif choice < 8:
+                p = L
+            elif choice < 11:
+                p = R
+            elif choice < 13:
+                p = S
+            elif choice < 16:
+                p = BM
+            elif choice < 19:
+                p = MB
+            else:
+                p = OB
         plant(t, p, loc["row"], loc["col"])
 
-    # PHASE 3 (150-230): pre-Ash Eclipse
-    for i in range(min(600, n)):
-        t = 150 + (i // max_per)
-        if t > 230:
+    # PHASE 3 (120-200): HEAVY Grass for Crystal Cactus at Drought@280
+    for i in range(min(1000, n * 2)):
+        t = 120 + (i // max_per)
+        if t > 200:
             break
         loc = locations[(i * 11) % n]
         choice = i % 20
-        if choice < 6:
+        if choice < 10:
             p = G
-        elif choice < 10:
-            p = L
         elif choice < 13:
-            p = R
+            p = L
         elif choice < 15:
-            p = S
+            p = R
         elif choice < 17:
-            p = BM
+            p = S
         elif choice < 19:
-            p = MB
+            p = BM
         else:
-            p = OB
+            p = MB
         plant(t, p, loc["row"], loc["col"])
 
-    # PHASE 4 (250-270): Ash Eclipse window (before Drought@280)
-    for i in range(min(400, n)):
-        t = 250 + (i // max_per)
+    # PHASE 4 (230-270): keep Grass high through Ash Eclipse
+    for i in range(min(600, n)):
+        t = 230 + (i // max_per)
         if t > 270:
             break
         loc = locations[(i * 13) % n]
         choice = i % 20
-        if choice < 5:
-            p = G
-        elif choice < 9:
-            p = L
-        elif choice < 12:
-            p = R
-        elif choice < 14:
-            p = S
-        elif choice < 16:
-            p = BM
-        elif choice < 18:
-            p = MB
-        else:
-            p = CV
-        plant(t, p, loc["row"], loc["col"])
-
-    # PHASE 5 (320-400): AFTER Drought – re-establish
-    for i in range(min(600, n)):
-        t = 320 + (i // max_per)
-        if t > 400:
-            break
-        loc = locations[(i * 17) % n]
-        choice = i % 20
-        if choice < 7:
+        if choice < 8:
             p = G
         elif choice < 11:
             p = L
-        elif choice < 14:
+        elif choice < 13:
             p = R
-        elif choice < 16:
+        elif choice < 15:
             p = S
+        elif choice < 17:
+            p = BM
+        else:
+            p = MB
+        plant(t, p, loc["row"], loc["col"])
+
+    # PHASE 5 (280-320): AFTER Drought – Crystal Cactus heavy
+    for i in range(min(600, n)):
+        t = 280 + (i // max_per)
+        if t > 320:
+            break
+        loc = locations[(i * 17) % n]
+        choice = i % 20
+        if choice < 5:
+            p = G
+        elif choice < 8:
+            p = L
+        elif choice < 10:
+            p = R
+        elif choice < 12:
+            p = S
+        elif choice < 16:
+            p = CC
         elif choice < 18:
             p = BM
         else:
             p = MB
         plant(t, p, loc["row"], loc["col"])
 
-    # PHASE 6 (500-600): mid reinforce
-    for i in range(min(500, n)):
-        t = 500 + (i // max_per)
-        if t > 600:
+    # PHASE 6 (400-500): re-establish
+    for i in range(min(700, n)):
+        t = 400 + (i // max_per)
+        if t > 500:
             break
         loc = locations[(i * 19) % n]
+        choice = i % 20
+        if choice < 6:
+            p = G
+        elif choice < 10:
+            p = L
+        elif choice < 13:
+            p = R
+        elif choice < 15:
+            p = S
+        elif choice < 17:
+            p = CC
+        elif choice < 19:
+            p = BM
+        else:
+            p = MB
+        plant(t, p, loc["row"], loc["col"])
+
+    # PHASE 7 (600-680)
+    for i in range(min(500, n)):
+        t = 600 + (i // max_per)
+        if t > 680:
+            break
+        loc = locations[(i * 23) % n]
         choice = i % 20
         if choice < 5:
             p = G
@@ -176,16 +202,16 @@ def create_submission(level):
         elif choice < 14:
             p = S
         elif choice < 16:
-            p = BM
+            p = CC
         elif choice < 18:
-            p = MB
+            p = BM
         else:
-            p = OB
+            p = MB
         plant(t, p, loc["row"], loc["col"])
 
-    # PHASE 7 (720-790): AFTER Earthquake – final diversity
-    final_mix = [G, L, R, S, BM, MB, OB, CV, G, L, R, S, BM, MB, OB, L]
-    for i in range(min(800, n * 2)):
+    # PHASE 8 (720-790): AFTER Earthquake – final diversity
+    final_mix = [G, L, R, S, BM, MB, CC, OB, G, L, R, S, BM, MB, CC, L]
+    for i in range(min(1000, n * 2)):
         t = 720 + (i // max_per)
         if t >= ticks - 1:
             break
@@ -197,25 +223,20 @@ def create_submission(level):
         plants = by_tick[tick][:max_per]
         if plants:
             actions.append({"tick": tick, "plants": plants})
-
     return {"actions": actions}
 
 
 if __name__ == "__main__":
     level = load_level()
     submission = create_submission(level)
-
     total = sum(len(a["plants"]) for a in submission["actions"])
-    print(f"Total plant actions: {total}")
-    print(f"Tick groups: {len(submission['actions'])}")
-
+    print(f"Total: {total}")
     from collections import Counter
     cnt = Counter()
     for a in submission["actions"]:
         for p in a["plants"]:
             cnt[p["plant_index"]] += 1
-    print("Plant counts:", dict(sorted(cnt.items())))
-
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    print("Counts:", dict(sorted(cnt.items())))
+    with open(OUTPUT_FILE, "w") as f:
         json.dump(submission, f, indent=2)
     print(f"Wrote {OUTPUT_FILE}")
