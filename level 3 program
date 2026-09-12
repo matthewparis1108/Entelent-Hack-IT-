@@ -1,35 +1,17 @@
 """
-Level 3 – Comprehensive solution
-================================
-Grid: 150x150 (22500 cells), 800 ticks
-animals_enabled: true
-
-Events:
-  - Drought      @ tick  10   → Crystal Cactus (Grass cov > 0.04)
-  - Rain         @ tick 150   → Mire Bloom (Blue Moss cov > 0.05)
-  - Ash Eclipse  @ tick 300   → Emberroot / Ashroot / Phoenix path
-  - Seasons      every 100 ticks
+Level 3 – Density-first (Level 1 baseline)
+No Crimson Vine, no Crystal Cactus
 """
 
 import json
 from collections import defaultdict, Counter
 
-# =============================================================================
 INPUT_FILE = "3.json"
 OUTPUT_FILE = "level3_submission.json"
-# =============================================================================
 
-GRASS = 1
-ROSE_BUSH = 2
-BLUE_MOSS = 3
-CRIMSON_VINE = 4
-DWARF_SUNFLOWER = 5
-LAVENDER = 6
-ORANGE_BLOSSOM = 7
-GLOWCAP = 9
-OAK_TREE = 12
-CRYSTAL_CACTUS = 17
-MIRE_BLOOM = 18
+GRASS, ROSE_BUSH, BLUE_MOSS = 1, 2, 3
+DWARF_SUNFLOWER, LAVENDER = 5, 6
+ORANGE_BLOSSOM, MIRE_BLOOM = 7, 18
 
 
 def load_level(path):
@@ -54,7 +36,7 @@ def find_valid_locations(level):
 def create_submission(level):
     locations = find_valid_locations(level)
     n = len(locations)
-    print(f"[INFO] Usable locations: {n}")
+    print(f"[INFO] Locations: {n}")
 
     ticks = level.get("ticks", 800)
     max_per = 20
@@ -70,7 +52,7 @@ def create_submission(level):
         if n == 0:
             return
         total = (end - start + 1) * max_per
-        if max_actions is not None:
+        if max_actions:
             total = min(total, max_actions)
         for i in range(total):
             t = start + (i // max_per)
@@ -79,98 +61,34 @@ def create_submission(level):
             loc = locations[(i * stride) % n]
             add(t, mix[i % len(mix)], loc["row"], loc["col"])
 
-    # PHASE 1 (0-9): ONLY Grass for Crystal Cactus at Drought@10
-    spread(0, 9, [GRASS], stride=1, max_actions=200)
-    print("[PHASE 1] Grass only for Crystal Cactus @ Drought")
+    # PHASE 1 (15-100): AFTER Drought – rebuild hard
+    mix1 = [GRASS]*10 + [ROSE_BUSH]*5 + [LAVENDER]*3 + [DWARF_SUNFLOWER]*2
+    spread(15, 100, mix1, stride=1, max_actions=1400)
 
-    # PHASE 2 (12-80): After Drought – starters + Crystal Cactus
-    mix2 = (
-        [GRASS] * 10 +
-        [ROSE_BUSH] * 5 +
-        [LAVENDER] * 3 +
-        [DWARF_SUNFLOWER] * 1 +
-        [CRYSTAL_CACTUS] * 1
-    )
-    spread(12, 80, mix2, stride=1, max_actions=1200)
-    print("[PHASE 2] Starters + Crystal Cactus")
+    # PHASE 2 (110-145): pre-Rain
+    mix2 = [GRASS]*6 + [LAVENDER]*5 + [ROSE_BUSH]*4 + [DWARF_SUNFLOWER]*3 + [BLUE_MOSS]*2
+    spread(110, 145, mix2, stride=7, max_actions=600)
 
-    # PHASE 3 (90-140): Pre-Rain – Blue Moss path
-    mix3 = (
-        [GRASS] * 6 +
-        [LAVENDER] * 4 +
-        [ROSE_BUSH] * 3 +
-        [DWARF_SUNFLOWER] * 2 +
-        [BLUE_MOSS] * 3 +
-        [CRYSTAL_CACTUS] * 1 +
-        [ORANGE_BLOSSOM] * 1
-    )
-    spread(90, 140, mix3, stride=7, max_actions=800)
-    print("[PHASE 3] Blue Moss path before Rain")
+    # PHASE 3 (150-220): Rain – Blue Moss / Mire Bloom tries
+    mix3a = [GRASS]*5 + [LAVENDER]*4 + [ROSE_BUSH]*3 + [DWARF_SUNFLOWER]*2 + [BLUE_MOSS]*6
+    spread(150, 165, mix3a, stride=11, max_actions=400)
+    mix3b = [GRASS]*5 + [LAVENDER]*4 + [ROSE_BUSH]*3 + [DWARF_SUNFLOWER]*2 + [BLUE_MOSS]*3 + [MIRE_BLOOM]*2 + [ORANGE_BLOSSOM]*1
+    spread(166, 220, mix3b, stride=13, max_actions=700)
 
-    # PHASE 4a (150-165): Rain window – Blue Moss heavy
-    mix4a = (
-        [GRASS] * 4 +
-        [LAVENDER] * 3 +
-        [ROSE_BUSH] * 2 +
-        [DWARF_SUNFLOWER] * 2 +
-        [BLUE_MOSS] * 7 +
-        [CRYSTAL_CACTUS] * 1 +
-        [ORANGE_BLOSSOM] * 1
-    )
-    spread(150, 165, mix4a, stride=11, max_actions=400)
-    print("[PHASE 4a] Rain – Blue Moss push")
+    # PHASE 4 (300-400): post Ash Eclipse – pure starters
+    mix4 = [GRASS]*6 + [LAVENDER]*5 + [ROSE_BUSH]*4 + [DWARF_SUNFLOWER]*3 + [BLUE_MOSS]*1 + [MIRE_BLOOM]*1
+    spread(300, 400, mix4, stride=17, max_actions=1000)
 
-    # PHASE 4b (166-230): Post-Rain – Mire Bloom
-    mix4b = (
-        [GRASS] * 4 +
-        [LAVENDER] * 3 +
-        [ROSE_BUSH] * 2 +
-        [DWARF_SUNFLOWER] * 2 +
-        [BLUE_MOSS] * 3 +
-        [MIRE_BLOOM] * 4 +
-        [CRYSTAL_CACTUS] * 1 +
-        [ORANGE_BLOSSOM] * 1
-    )
-    spread(166, 230, mix4b, stride=13, max_actions=800)
-    print("[PHASE 4b] Mire Bloom after Rain")
+    # PHASE 5 (500-600)
+    mix5 = [GRASS]*6 + [LAVENDER]*5 + [ROSE_BUSH]*4 + [DWARF_SUNFLOWER]*3 + [BLUE_MOSS]*1 + [MIRE_BLOOM]*1
+    spread(500, 600, mix5, stride=19, max_actions=800)
 
-    # PHASE 5 (280-360): Ash Eclipse window
-    mix5 = (
-        [GRASS] * 5 +
-        [LAVENDER] * 4 +
-        [ROSE_BUSH] * 3 +
-        [DWARF_SUNFLOWER] * 2 +
-        [BLUE_MOSS] * 2 +
-        [MIRE_BLOOM] * 2 +
-        [CRYSTAL_CACTUS] * 1 +
-        [ORANGE_BLOSSOM] * 1
-    )
-    spread(280, 360, mix5, stride=17, max_actions=800)
-    print("[PHASE 5] Ash Eclipse window")
-
-    # PHASE 6 (450-550): Mid-game reinforce
-    mix6 = (
-        [GRASS] * 5 +
-        [LAVENDER] * 4 +
-        [ROSE_BUSH] * 3 +
-        [DWARF_SUNFLOWER] * 2 +
-        [BLUE_MOSS] * 2 +
-        [MIRE_BLOOM] * 2 +
-        [CRYSTAL_CACTUS] * 1 +
-        [ORANGE_BLOSSOM] * 1
-    )
-    spread(450, 550, mix6, stride=19, max_actions=700)
-    print("[PHASE 6] Mid reinforce")
-
-    # PHASE 7 (700-790): FINAL diversity
-    final = [
-        GRASS, LAVENDER, ROSE_BUSH, DWARF_SUNFLOWER,
-        BLUE_MOSS, MIRE_BLOOM, CRYSTAL_CACTUS, ORANGE_BLOSSOM,
-        GRASS, LAVENDER, ROSE_BUSH, DWARF_SUNFLOWER,
-        BLUE_MOSS, MIRE_BLOOM, CRYSTAL_CACTUS, LAVENDER
-    ]
-    spread(700, 790, final, stride=3, max_actions=1200)
-    print("[PHASE 7] Final diversity push")
+    # PHASE 6 (700-790): FINAL density (Level 1 style)
+    final = [GRASS, LAVENDER, ROSE_BUSH, DWARF_SUNFLOWER,
+             GRASS, LAVENDER, ROSE_BUSH, DWARF_SUNFLOWER,
+             GRASS, LAVENDER, ROSE_BUSH, DWARF_SUNFLOWER,
+             BLUE_MOSS, MIRE_BLOOM, GRASS, LAVENDER]
+    spread(700, 790, final, stride=3, max_actions=1400)
 
     actions = []
     for tick in sorted(by_tick.keys()):
@@ -180,37 +98,16 @@ def create_submission(level):
     return {"actions": actions}
 
 
-def main():
+if __name__ == "__main__":
     level = load_level(INPUT_FILE)
     submission = create_submission(level)
-
     total = sum(len(a["plants"]) for a in submission["actions"])
-    print(f"\n[SUMMARY] Total plant actions: {total}")
-    print(f"[SUMMARY] Tick groups: {len(submission['actions'])}")
-    if submission["actions"]:
-        print(f"[SUMMARY] Tick range: "
-              f"{submission['actions'][0]['tick']} … "
-              f"{submission['actions'][-1]['tick']}")
-
+    print(f"Total: {total}")
     cnt = Counter()
     for a in submission["actions"]:
         for p in a["plants"]:
             cnt[p["plant_index"]] += 1
-
-    names = {
-        1: "Grass", 2: "Rose Bush", 3: "Blue Moss", 4: "Crimson Vine",
-        5: "Dwarf Sunflower", 6: "Lavender", 7: "Orange Blossom",
-        9: "Glowcap", 12: "Oak Tree", 17: "Crystal Cactus", 18: "Mire Bloom"
-    }
-    print("[SUMMARY] Plant type counts:")
-    for idx, count in sorted(cnt.items()):
-        label = names.get(idx, f"plant_{idx}")
-        print(f"           {label:20s} ({idx:2d}): {count}")
-
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    print("Counts:", dict(sorted(cnt.items())))
+    with open(OUTPUT_FILE, "w") as f:
         json.dump(submission, f, indent=2)
-    print(f"\n[DONE] Wrote {OUTPUT_FILE}")
-
-
-if __name__ == "__main__":
-    main()
+    print(f"Wrote {OUTPUT_FILE}")
